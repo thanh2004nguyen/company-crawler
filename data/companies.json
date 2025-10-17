@@ -1,0 +1,18 @@
+[
+  {
+    "company_name": "MAGNA Real Estate GmbH",
+    "registernummer": "HRB182742",
+    "ust_idnr": "DE305962143",
+    "status": "active",
+    "priority": 1,
+    "notes": "Test case từ khách hàng - đã verify 21/23 trường"
+  },
+  {
+    "company_name": "Aves One AG",
+    "registernummer": "HRB 124894",
+    "ust_idnr": "",
+    "status": "active",
+    "priority": 2,
+    "notes": "Test case Bayern - Amtsgericht Memmingen"
+  }
+]

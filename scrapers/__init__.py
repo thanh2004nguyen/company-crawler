@@ -1,5 +1,11 @@
-# Scrapers module
-# This module contains scrapers for different data sources
+# Services module
+# This module contains services for different data sources
+# Each service is responsible for scraping data from a specific source
 
-__all__ = []
+__all__ = [
+    'HandelsregisterScraper',
+    'NorthdataScraper',
+    'UnternehmensregisterScraper',
+    'LinkedInScraper'
+]
 

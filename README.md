@@ -1,112 +1,175 @@
-# German Company Crawler
+# German Company Crawler API
 
-Công cụ scraping dữ liệu công ty Đức từ nhiều nguồn khác nhau.
+Professional API for crawling and extracting German company data from multiple sources including Northdata, Handelsregister, LinkedIn, and Unternehmensregister.
 
-## 📋 Mô tả
+## Features
 
-Dự án này thu thập 23 trường dữ liệu về công ty Đức từ các nguồn:
-- Handelsregister.de (Sổ đăng ký thương mại)
-- Northdata.de (Dữ liệu kinh doanh)
-- Unternehmensregister.de (Đăng ký doanh nghiệp)
-- LinkedIn (Thông tin công ty)
-- Creditreform.de (Đánh giá tín dụng)
+- **Multi-source scraping**: Northdata, Handelsregister, LinkedIn, Unternehmensregister
+- **27 data fields extraction**: Complete company information including financial, legal, and contact data
+- **Parallel processing**: Concurrent scraping for faster results
+- **Robust error handling**: Automatic retry and fallback mechanisms
+- **Stealth mode**: Advanced bot detection avoidance
+- **HTML/PDF/XML data extraction**: Raw data preservation for analysis
 
-## 🚀 Cài đặt
+## API Endpoints
 
-### 1. Clone repository
+### POST /api/company
+Crawl company data from all sources.
+
+**Request Body:**
+```json
+{
+  "company_name": "MAGNA Real Estate GmbH",
+  "registernummer": "HRB182742",
+  "ust_idnr": "DE305962143"
+}
+```
+
+**Response:**
+```json
+{
+  "company_name": "MAGNA Real Estate GmbH",
+  "registernummer": "HRB182742",
+  "ust_idnr": "DE305962143",
+  "northdata": {
+    "html": "...",
+    "html_filepath": "data/companies/MAGNA_Real_Estate_GmbH_HRB182742_northdata.html"
+  },
+  "handelsregister": {
+    "pdf_filepath": "data/downloads/HRB182742_AD.pdf",
+    "xml_filepath": "data/downloads/HRB182742_SI.xml"
+  },
+  "linkedin": {
+    "about_html": "..."
+  },
+  "unternehmensregister": {
+    "search_results_html": "...",
+    "jahresabschluss_html": "..."
+  }
+}
+```
+
+### GET /
+Root endpoint with API information.
+
+### GET /health
+Health check endpoint.
+
+### GET /docs
+Interactive API documentation.
+
+## Installation
+
+1. Clone the repository:
 ```bash
 git clone https://github.com/Datapix-organization/Company-crawler.git
 cd Company-crawler
 ```
 
-### 2. Tạo virtual environment
-```bash
-python -m venv venv
-```
-
-### 3. Activate virtual environment
-**Windows:**
-```bash
-venv\Scripts\activate
-```
-
-**Linux/Mac:**
-```bash
-source venv/bin/activate
-```
-
-### 4. Cài đặt dependencies
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-## 📁 Cấu trúc dự án
-
-```
-german-company-crawler/
-├── models/              # Data models
-│   ├── __init__.py
-│   └── company_model.py
-├── scrapers/            # Scraping modules
-├── utils/               # Helper functions
-├── data/                # Output data
-├── requirements.txt     # Dependencies
-├── .gitignore
-└── README.md
+3. Install Playwright browsers:
+```bash
+playwright install
 ```
 
-## 💾 Data Model
+4. Run the server:
+```bash
+python server.py
+```
 
-Dự án thu thập 23+ trường dữ liệu:
-- Registernummer (Số đăng ký)
-- Handelsregister (Sổ thương mại)
-- Mitarbeiter (Nhân viên)
-- USt-IdNr (Mã số thuế)
-- Insolvenz (Phá sản)
-- Unternehmenszweck (Mục đích KD)
-- Umsatz (Doanh thu)
-- Gewinn (Lợi nhuận)
-- ... và nhiều hơn nữa
+The API will be available at `http://localhost:8000`
 
-## 🔧 Sử dụng
+## Data Fields Extracted
+
+The API extracts 27 standardized fields from German company data:
+
+### Basic Information (7 fields)
+- registernummer, handelsregister, geschaeftsadresse, unternehmenszweck
+- land_des_hauptsitzes, gerichtsstand, paragraph_34_gewo
+
+### Financial Data (4 fields)
+- mitarbeiter, umsatz, gewinn, insolvenz
+
+### Real Estate Data (2 fields)
+- anzahl_immobilien, gesamtwert_immobilien
+
+### Other Information (3 fields)
+- sonstige_rechte, gruendungsdatum, aktiv_seit
+
+### Contact Information (4 fields)
+- geschaeftsfuehrer, telefonnummer, email, website
+
+### File Data (5 fields)
+- html_filepath, about_html, pdf_filepath, xml_filepath
+- search_results_html, jahresabschluss_html
+
+### Additional Information (2 fields)
+- ust_idnr
+
+## Project Structure
+
+```
+├── server.py                 # FastAPI main application
+├── scrapers/                 # Scraper modules
+│   ├── northdata_scraper.py
+│   ├── handelsregister_scraper.py
+│   ├── linkedin_scraper.py
+│   └── unternehmensregister_scraper.py
+├── utils/                    # Utility modules
+│   ├── pdf_data_extractor.py
+│   └── xml_parser.py
+├── data/                     # Data storage
+│   ├── companies.json        # Company list
+│   └── companies/            # Scraped data files
+└── requirements.txt          # Dependencies
+```
+
+## Usage Example
 
 ```python
-from models import CompanyData
-from scrapers import HandelsregisterScraper
+import requests
 
-# Khởi tạo scraper
-scraper = HandelsregisterScraper()
+# API call example
+response = requests.post('http://localhost:8000/api/company', json={
+    "company_name": "MAGNA Real Estate GmbH",
+    "registernummer": "HRB182742",
+    "ust_idnr": "DE305962143"
+})
 
-# Scrape dữ liệu công ty
-company_data = scraper.scrape("HRB182742")
-
-# Export to JSON
-company_data.model_dump_json()
+data = response.json()
+print(f"Company: {data['company_name']}")
+print(f"Employees: {data['northdata'].get('mitarbeiter', 'N/A')}")
 ```
 
-## 📊 Test Case
+## Technical Details
 
-**Công ty mẫu:** MAGNA Real Estate GmbH
-- Registernummer: HRB182742
-- USt-IdNr: DE305962143
+- **Framework**: FastAPI with Uvicorn
+- **Scraping**: Playwright + Selenium with stealth mode
+- **Data Processing**: BeautifulSoup, PDFplumber, XML parsing
+- **Concurrency**: ThreadPoolExecutor for parallel scraping
+- **Error Handling**: Comprehensive try-catch with logging
 
-## 🛠️ Công nghệ sử dụng
+## Requirements
 
-- Python 3.12+
-- Selenium / Playwright (Browser automation)
-- BeautifulSoup4 (HTML parsing)
-- Pydantic (Data validation)
-- Pandas (Data processing)
+- Python 3.8+
+- Chrome/Chromium browser
+- Internet connection for scraping
 
-## 📝 License
+## License
 
-Private project for Hai Pham
+This project is licensed under the MIT License.
 
-## 👥 Contributors
+## Contributing
 
-- Thanh Nguyen Thai (@thanh2004nguyen)
-- Hai Pham (Client)
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
-## 📮 Contact
+## Support
 
-Email: nguyenthaithanh101104@gmail.com
+For issues and questions, please create an issue in the GitHub repository.

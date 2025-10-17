@@ -16,15 +16,18 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual Environment
 venv/
 env/
 ENV/
-.venv
+env.bak/
+venv.bak/
 
 # IDE
 .vscode/
@@ -33,35 +36,43 @@ ENV/
 *.swo
 *~
 
-# Environment variables
-.env
-.env.local
-
-# Data files
-data/*.csv
-data/*.json
-data/*.xlsx
-data/*.db
-data/*.sqlite
-
 # Logs
 *.log
 logs/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Data files
+data/downloads/
+data/temp/
+*.pdf
+*.xml
+*.html
+*.png
+*.jpg
+
+# Test results
+test_results/
+results/
+*.json.bak
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
+# Temporary files
+*.tmp
+*.temp
+temp/
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# Browser data
+browser_data/
+selenium_logs/
 
-# Distribution / packaging
-.Python
-pip-log.txt
-pip-delete-this-directory.txt
-
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
