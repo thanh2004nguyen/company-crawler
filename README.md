@@ -60,28 +60,74 @@ Interactive API documentation.
 
 ## Installation
 
+### Local Development
+
 1. Clone the repository:
 ```bash
-git clone https://github.com/Datapix-organization/Company-crawler.git
-cd Company-crawler
+git clone https://github.com/thanh2004nguyen/company-crawler.git
+cd company-crawler
 ```
 
-2. Install dependencies:
+2. Create virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Install Playwright browsers:
+4. Install Playwright browsers:
 ```bash
 playwright install
 ```
 
-4. Run the server:
+5. Run the server:
 ```bash
 python server.py
 ```
 
 The API will be available at `http://localhost:8000`
+
+### Production Deployment on Render.com
+
+1. **Fork this repository** to your GitHub account
+
+2. **Connect to Render.com:**
+   - Go to [Render.com](https://render.com)
+   - Sign up/Login with your GitHub account
+   - Click "New +" → "Web Service"
+   - Connect your GitHub repository
+
+3. **Configure the service:**
+   - **Name**: `german-company-crawler`
+   - **Environment**: `Python 3`
+   - **Build Command**: 
+     ```bash
+     pip install -r requirements.txt && playwright install chromium && playwright install-deps
+     ```
+   - **Start Command**: `python server.py`
+   - **Plan**: Choose Starter (free) or higher
+
+4. **Environment Variables** (optional):
+   - `PORT`: 8000 (automatically set by Render)
+   - `PYTHON_VERSION`: 3.11.0
+
+5. **Deploy**: Click "Create Web Service"
+
+Your API will be available at: `https://your-app-name.onrender.com`
+
+### Alternative: Docker Deployment
+
+```bash
+# Build the Docker image
+docker build -t german-company-crawler .
+
+# Run the container
+docker run -p 8000:8000 german-company-crawler
+```
 
 ## Data Fields Extracted
 

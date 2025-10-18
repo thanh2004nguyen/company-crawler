@@ -350,12 +350,17 @@ async def crawl_company(request: CompanyRequest):
         return error_response
 
 if __name__ == "__main__":
+    import os
+    
+    # Get port from environment variable (for Render.com)
+    port = int(os.environ.get("PORT", 8000))
+    
     # Run server with increased timeout
     uvicorn.run(
         "server:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
+        port=port,
+        reload=False,  # Disable reload in production
         log_level="info",
         timeout_keep_alive=3600,  # 60 minutes keep-alive timeout
         timeout_graceful_shutdown=60  # 60 seconds graceful shutdown

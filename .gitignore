@@ -16,7 +16,6 @@ parts/
 sdist/
 var/
 wheels/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -36,43 +35,22 @@ venv.bak/
 *.swo
 *~
 
-# Logs
-*.log
-logs/
-
-# Environment variables
-.env
-.env.local
-.env.production
-
-# Data files
-data/downloads/
-data/temp/
-*.pdf
-*.xml
-*.html
-*.png
-*.jpg
-
-# Test results
-test_results/
-results/
-*.json.bak
-
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Temporary files
-*.tmp
-*.temp
-temp/
-
-# Browser data
-browser_data/
-selenium_logs/
+# Project specific
+data/downloads/*
+!data/downloads/.gitkeep
+*.log
+.env
+.env.local
 
 # Playwright
-test-results/
 playwright-report/
-playwright/.cache/
+test-results/

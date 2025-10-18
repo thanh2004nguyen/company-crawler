@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: german-company-crawler
+    env: python
+    plan: starter
+    buildCommand: |
+      pip install -r requirements.txt
+      playwright install chromium
+      playwright install-deps
+    startCommand: python server.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORT
+        value: 8000
