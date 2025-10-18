@@ -357,6 +357,6 @@ if __name__ == "__main__":
         port=8000,
         reload=True,
         log_level="info",
-        timeout_keep_alive=1800,  # 30 minutes keep-alive timeout
-        timeout_graceful_shutdown=30  # 30 seconds graceful shutdown
+        timeout_keep_alive=3600,  # 60 minutes keep-alive timeout
+        timeout_graceful_shutdown=60  # 60 seconds graceful shutdown
     )
