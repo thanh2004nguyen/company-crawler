@@ -47,11 +47,14 @@ class CompanyResponse(BaseModel):
     success: bool
     error: Optional[str] = None
 
-# Initialize scrapers
-handelsregister_scraper = HandelsregisterScraper(headless=False, language='FR')  # Show browser
-northdata_scraper = NorthdataScraper(headless=False)  # Show browser
-linkedin_scraper = LinkedInScraper()  # Selenium scraper
-unternehmensregister_scraper = UnternehmensregisterScraper()  # Playwright scraper
+# Initialize scrapers with headless mode for production
+import os
+is_production = os.environ.get('RENDER', False)  # Render.com sets RENDER=true
+
+handelsregister_scraper = HandelsregisterScraper(headless=is_production, language='FR')
+northdata_scraper = NorthdataScraper(headless=is_production)
+linkedin_scraper = LinkedInScraper()
+unternehmensregister_scraper = UnternehmensregisterScraper()
 
 def load_companies_data():
     """Load companies data from companies.json"""
