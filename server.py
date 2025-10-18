@@ -128,8 +128,8 @@ async def crawl_company(request: CompanyRequest):
         else:
             logger.info(f"ℹ️ No USt-IdNr available, will try to extract from scrapers")
         
-        # Run scrapers in parallel using ThreadPoolExecutor
-        with ThreadPoolExecutor() as executor:
+        # Run scrapers in parallel using ThreadPoolExecutor with error handling
+        with ThreadPoolExecutor(max_workers=4) as executor:
             # 1. Start Handelsregister scraper
             handelsregister_future = executor.submit(
                 handelsregister_scraper.scrape_company,
@@ -159,11 +159,30 @@ async def crawl_company(request: CompanyRequest):
                 request.registernummer
             )
             
-            # 5. Wait for results
-            handelsregister_data = handelsregister_future.result()
-            northdata_data = northdata_future.result()
-            linkedin_data = linkedin_future.result()
-            unternehmensregister_data = unternehmensregister_future.result()
+            # 5. Wait for results with error handling
+            try:
+                handelsregister_data = handelsregister_future.result(timeout=300)  # 5 minutes timeout
+            except Exception as e:
+                logger.error(f"❌ Handelsregister scraper failed: {e}")
+                handelsregister_data = {}
+            
+            try:
+                northdata_data = northdata_future.result(timeout=300)
+            except Exception as e:
+                logger.error(f"❌ Northdata scraper failed: {e}")
+                northdata_data = {}
+            
+            try:
+                linkedin_data = linkedin_future.result(timeout=300)
+            except Exception as e:
+                logger.error(f"❌ LinkedIn scraper failed: {e}")
+                linkedin_data = {}
+            
+            try:
+                unternehmensregister_data = unternehmensregister_future.result(timeout=300)
+            except Exception as e:
+                logger.error(f"❌ Unternehmensregister scraper failed: {e}")
+                unternehmensregister_data = {}
         
         # 4. Process Handelsregister results
         handelsregister_files = {}

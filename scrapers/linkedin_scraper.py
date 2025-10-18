@@ -41,6 +41,16 @@ class LinkedInScraper:
         self.chrome_options.add_argument('--no-sandbox')
         self.chrome_options.add_argument('--disable-dev-shm-usage')
         self.chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        self.chrome_options.add_argument('--disable-gpu')
+        self.chrome_options.add_argument('--disable-extensions')
+        self.chrome_options.add_argument('--disable-plugins')
+        self.chrome_options.add_argument('--disable-images')
+        self.chrome_options.add_argument('--disable-javascript')
+        # Fix for Render.com - use unique user data directory
+        import tempfile
+        import os
+        temp_dir = tempfile.mkdtemp()
+        self.chrome_options.add_argument(f'--user-data-dir={temp_dir}')
         self.chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         self.chrome_options.add_experimental_option('useAutomationExtension', False)
     

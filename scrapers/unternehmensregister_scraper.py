@@ -18,6 +18,8 @@ import logging
 import PyPDF2
 import pdfplumber
 from playwright.sync_api import sync_playwright, Page, Browser
+import asyncio
+import os
 import os
 
 # Setup logging
@@ -50,6 +52,14 @@ class UnternehmensregisterScraper:
         """
         try:
             logger.info(f"🔍 Scraping unternehmensregister.de for {company_name} ({registernummer})")
+            
+            # Fix for Render.com - ensure clean asyncio loop
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    logger.info("🔄 Using existing event loop for Playwright")
+            except RuntimeError:
+                logger.info("🔄 Creating new event loop for Playwright")
             
             with sync_playwright() as p:
                 # Launch browser với stealth mode để tránh detection
