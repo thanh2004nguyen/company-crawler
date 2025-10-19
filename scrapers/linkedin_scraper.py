@@ -45,7 +45,7 @@ class LinkedInScraper:
         self.chrome_options.add_argument('--disable-extensions')
         self.chrome_options.add_argument('--disable-plugins')
         self.chrome_options.add_argument('--disable-images')
-        self.chrome_options.add_argument('--disable-javascript')
+        # self.chrome_options.add_argument('--disable-javascript')  # LinkedIn needs JavaScript
         # Fix for Render.com - use unique user data directory
         import tempfile
         import os
