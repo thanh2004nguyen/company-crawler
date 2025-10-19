@@ -50,7 +50,8 @@ class CompanyResponse(BaseModel):
 
 # Initialize scrapers with headless mode for production
 import os
-is_production = os.environ.get('RENDER', False)  # Render.com sets RENDER=true
+# Force headless mode for all environments (production and development)
+is_production = True  # Always use headless mode
 
 handelsregister_scraper = HandelsregisterScraper(headless=is_production, language='FR')
 northdata_scraper = NorthdataScraper(headless=is_production)

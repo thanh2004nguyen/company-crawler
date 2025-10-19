@@ -37,7 +37,7 @@ class LinkedInScraper:
         
         # Setup Chrome driver options
         self.chrome_options = Options()
-        # self.chrome_options.add_argument('--headless')  # Comment out để xem browser
+        self.chrome_options.add_argument('--headless')  # Always run headless
         self.chrome_options.add_argument('--no-sandbox')
         self.chrome_options.add_argument('--disable-dev-shm-usage')
         self.chrome_options.add_argument('--disable-blink-features=AutomationControlled')
