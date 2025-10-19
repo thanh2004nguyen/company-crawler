@@ -43,6 +43,7 @@ class CompanyRequest(BaseModel):
 class CompanyResponse(BaseModel):
     company_name: str
     registernummer: str
+    ust_idnr: Optional[str] = None
     files: Dict[str, Dict[str, Optional[str]]]  # {"handelsregister": {"pdf": "content", "xml": "content"}, "northdata": {"html": "content"}, "linkedin": {"about_html": "content"}, "unternehmensregister": {"jahresabschluss_html": "content"}}
     success: bool
     error: Optional[str] = None
@@ -349,6 +350,7 @@ async def crawl_company(request: CompanyRequest):
         response = CompanyResponse(
             company_name=request.company_name,
             registernummer=request.registernummer,
+            ust_idnr=final_ust_idnr or extracted_ust_idnr,
             files=all_files,
             success=True
         )
@@ -360,6 +362,7 @@ async def crawl_company(request: CompanyRequest):
         error_response = CompanyResponse(
             company_name=request.company_name,
             registernummer=request.registernummer,
+            ust_idnr=request.ust_idnr,
             files={
                 "handelsregister": {"pdf": None, "xml": None},
                 "northdata": {"html": None},
