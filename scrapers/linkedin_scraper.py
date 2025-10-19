@@ -37,7 +37,7 @@ class LinkedInScraper:
         
         # Setup Chrome driver options
         self.chrome_options = Options()
-        # self.chrome_options.add_argument('--headless')  # Temporarily disable for debugging
+        self.chrome_options.add_argument('--headless')  # Always headless on cloud
         self.chrome_options.add_argument('--no-sandbox')
         self.chrome_options.add_argument('--disable-dev-shm-usage')
         self.chrome_options.add_argument('--disable-blink-features=AutomationControlled')
@@ -45,6 +45,10 @@ class LinkedInScraper:
         self.chrome_options.add_argument('--disable-extensions')
         self.chrome_options.add_argument('--disable-plugins')
         self.chrome_options.add_argument('--disable-images')
+        self.chrome_options.add_argument('--disable-web-security')
+        self.chrome_options.add_argument('--disable-features=VizDisplayCompositor')
+        self.chrome_options.add_argument('--remote-debugging-port=9222')
+        self.chrome_options.add_argument('--window-size=1920,1080')
         # self.chrome_options.add_argument('--disable-javascript')  # LinkedIn needs JavaScript
         # Fix for Render.com - use unique user data directory
         import tempfile

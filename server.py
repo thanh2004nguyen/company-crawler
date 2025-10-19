@@ -50,8 +50,8 @@ class CompanyResponse(BaseModel):
 
 # Initialize scrapers with headless mode for production
 import os
-# Temporarily disable headless mode for debugging
-is_production = False  # Show browser for debugging
+# Force headless mode for cloud deployment
+is_production = True  # Always headless on cloud
 
 handelsregister_scraper = HandelsregisterScraper(headless=is_production, language='FR')
 northdata_scraper = NorthdataScraper(headless=is_production)
