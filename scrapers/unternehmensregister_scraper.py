@@ -64,7 +64,7 @@ class UnternehmensregisterScraper:
             with sync_playwright() as p:
                 # Launch browser với stealth mode để tránh detection
                 browser = p.chromium.launch(
-                    headless=True,
+                    headless=False,
                     args=[
                         '--no-sandbox',
                         '--disable-dev-shm-usage',

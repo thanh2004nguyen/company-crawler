@@ -975,7 +975,7 @@ if __name__ == "__main__":
     with open(companies_file, 'r', encoding='utf-8') as f:
         companies = json.load(f)
     
-    scraper = NorthdataScraper(headless=True)  # Always run headless
+    scraper = NorthdataScraper(headless=False)  # Show browser for debugging
     
     # Test tất cả companies
     for i, company in enumerate(companies, 1):

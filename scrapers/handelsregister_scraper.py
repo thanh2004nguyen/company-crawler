@@ -514,7 +514,7 @@ def test_from_companies_json(language: str = 'FR'):
     if companies:
         company = companies[0]
         
-        scraper = HandelsregisterScraper(headless=True, language=language)
+        scraper = HandelsregisterScraper(headless=False, language=language)
         
         result = scraper.scrape_company(
             company['company_name'],
