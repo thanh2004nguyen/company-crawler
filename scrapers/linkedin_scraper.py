@@ -1,24 +1,21 @@
 """
 LinkedIn Scraper
-Scrapes company data from LinkedIn using API and web scraping
+Scrapes company data from LinkedIn using Playwright with session/cookie management
 """
 
 import sys
 from pathlib import Path
+import os
+import json
+import time
+import logging
+from typing import Dict, Optional, List, Tuple
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-import requests
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
-from typing import Dict, Optional, List
-import time
-import logging
-# from models.company_model import CompanyData  # Removed - not needed
+from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -26,323 +23,510 @@ logger = logging.getLogger(__name__)
 
 
 class LinkedInScraper:
-    """Scraper for LinkedIn"""
+    """Scraper for LinkedIn using Playwright with session management"""
     
-    def __init__(self):
+    def __init__(self, headless: bool = True):
         self.base_url = "https://www.linkedin.com"
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        })
+        self.headless = headless
         
-        # Setup Chrome driver options
-        self.chrome_options = Options()
-        self.chrome_options.add_argument('--headless')  # Always headless on cloud
-        self.chrome_options.add_argument('--no-sandbox')
-        self.chrome_options.add_argument('--disable-dev-shm-usage')
-        self.chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        self.chrome_options.add_argument('--disable-gpu')
-        self.chrome_options.add_argument('--disable-extensions')
-        self.chrome_options.add_argument('--disable-plugins')
-        self.chrome_options.add_argument('--disable-images')
-        self.chrome_options.add_argument('--disable-web-security')
-        self.chrome_options.add_argument('--disable-features=VizDisplayCompositor')
-        self.chrome_options.add_argument('--remote-debugging-port=9222')
-        self.chrome_options.add_argument('--window-size=1920,1080')
-        # self.chrome_options.add_argument('--disable-javascript')  # LinkedIn needs JavaScript
-        # Fix for Render.com - use unique user data directory
-        import tempfile
-        import os
-        temp_dir = tempfile.mkdtemp()
-        self.chrome_options.add_argument(f'--user-data-dir={temp_dir}')
-        self.chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        self.chrome_options.add_experimental_option('useAutomationExtension', False)
+        # Session storage path
+        session_dir = Path("data/linkedin_session")
+        session_dir.mkdir(parents=True, exist_ok=True)
+        self.session_storage_path = session_dir / "context_storage.json"
+        
+        logger.info(f"🔧 LinkedIn Scraper initialized (headless={headless})")
+        logger.info(f"📁 Session storage: {self.session_storage_path}")
     
-    def scrape_company(self, company_name: str, registernummer: str) -> Dict:
-        """
-        Scrape company data from LinkedIn
-        
-        Args:
-            company_name: Company name
-            registernummer: HRB number
-            
-        Returns:
-            Dict with scraped data
-        """
+    def _save_context_storage(self, context: BrowserContext):
+        """Lưu context storage state (cookies, localStorage) vào file"""
         try:
-            logger.info(f"Scraping LinkedIn for {company_name}")
-            
-            # Tạm thời return placeholder data
-            # TODO: Implement actual LinkedIn scraping logic
-            data = {
-                'registernummer': registernummer,
-                'mitarbeiter': None,  # Sẽ extract từ LinkedIn company page
-                'website': None,      # Sẽ extract từ LinkedIn
-                'email': None,        # Sẽ extract từ LinkedIn
-                'telefonnummer': None # Sẽ extract từ LinkedIn
-            }
-            
-            logger.info(f"✅ LinkedIn placeholder data for {company_name}")
-            return data
-            
+            storage_state = context.storage_state()
+            with open(self.session_storage_path, 'w', encoding='utf-8') as f:
+                json.dump(storage_state, f, indent=2)
+            logger.info(f"✅ Đã lưu session/cookies vào {self.session_storage_path}")
+            return True
         except Exception as e:
-            logger.error(f"❌ Error scraping LinkedIn for {company_name}: {str(e)}")
-            return {}
+            logger.error(f"❌ Lỗi khi lưu session: {e}")
+            return False
     
-    def scrape_with_selenium(self, company_name: str, registernummer: str) -> Dict:
-        """
-        Scrape company data using Selenium (for dynamic content)
+    def _load_context_storage(self) -> Optional[Dict]:
+        """Load context storage state từ file nếu có"""
+        if not self.session_storage_path.exists():
+            logger.info("ℹ️ Chưa có session được lưu, cần đăng nhập mới")
+            return None
         
-        Args:
-            company_name: Company name
-            registernummer: HRB number
-            
-        Returns:
-            Dict with scraped data
-        """
         try:
-            logger.info(f"🔍 Scraping LinkedIn with Selenium for {company_name}")
-            
-            driver = webdriver.Chrome(options=self.chrome_options)
-            
-            # Thêm stealth script để ẩn automation
-            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            
-            # Bước 1: Đăng nhập LinkedIn
-            logger.info("🔐 Logging into LinkedIn...")
-            driver.get("https://www.linkedin.com/login")
-            time.sleep(3)
-            
-            # Xử lý các modal/popup ngay từ đầu
-            self._dismiss_all_modals(driver)
-            
-            # Nhập email
-            email_input = driver.find_element(By.ID, "username")
-            email_input.send_keys("nguyenthaithanh101104@gmail.com")
-            time.sleep(1)
-            
-            # Nhập password
-            password_input = driver.find_element(By.ID, "password")
-            password_input.send_keys("Nguyenthanh04")
-            time.sleep(1)
-            
-            # Click login
-            login_btn = driver.find_element(By.XPATH, "//button[@type='submit']")
-            login_btn.click()
-            time.sleep(5)
-            
-            # Xử lý modal sau khi login
-            self._dismiss_all_modals(driver)
-            
-            # Bước 2: Tìm kiếm công ty
-            logger.info(f"🔍 Searching for company: {company_name}")
-            search_input = driver.find_element(By.CSS_SELECTOR, "input[placeholder='Search']")
-            search_input.clear()
-            search_input.send_keys(company_name)
-            search_input.send_keys(Keys.RETURN)  # Press Enter
-            time.sleep(3)  # Đợi 3 giây như yêu cầu
-            
-            # Xử lý modal sau khi search
-            self._dismiss_all_modals(driver)
-            
-            # Debug: Log current URL và screenshot
-            current_url = driver.current_url
-            logger.info(f"📍 Current URL after search: {current_url}")
-            
-            # Screenshot để debug
-            driver.save_screenshot("linkedin_search_debug.png")
-            logger.info("📸 Saved screenshot: linkedin_search_debug.png")
-            
-            # Bước 3: Click "Companies" filter với xpath cụ thể
-            logger.info("🏢 Clicking 'Companies' filter...")
+            with open(self.session_storage_path, 'r', encoding='utf-8') as f:
+                storage_state = json.load(f)
+            logger.info(f"✅ Đã load session từ {self.session_storage_path}")
+            return storage_state
+        except Exception as e:
+            logger.warning(f"⚠️ Không thể load session: {e}")
+            return None
+    
+    def _setup_browser_context(self, playwright, load_session: bool = True) -> Tuple[Browser, BrowserContext]:
+        """Setup browser và context với session nếu có"""
+        browser = playwright.chromium.launch(
+            headless=self.headless,
+            args=[
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-blink-features=AutomationControlled',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor',
+            ]
+        )
+        
+        # Load session nếu có
+        storage_state = None
+        if load_session:
+            storage_state = self._load_context_storage()
+        
+        context = browser.new_context(
+            viewport={'width': 1920, 'height': 1080},
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            locale='en-US',
+            timezone_id='Europe/Berlin',
+            storage_state=storage_state,
+            ignore_https_errors=False,
+        )
+        
+        # Thêm stealth script
+        context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+        """)
+        
+        return browser, context
+    
+    def wait_for_manual_login(self, page: Page, first_time: bool = True) -> bool:
+        """
+        Mở trang đăng nhập và chờ user đăng nhập thủ công
+        User sẽ đăng nhập và nhấn Enter để báo hiệu đã xong
+        """
+        # Chỉ navigate đến login page nếu là lần đầu hoặc đang ở trang khác
+        if first_time:
+            logger.info("🔐 Đang mở trang đăng nhập LinkedIn...")
+            logger.info("📋 Vui lòng đăng nhập thủ công trong browser")
+            logger.info("⏳ Sau khi đăng nhập thành công, nhấn ENTER trong terminal này...")
             
             try:
-                # Sử dụng xpath cụ thể như yêu cầu
-                companies_btn = driver.find_element(By.XPATH, "//*[@id='search-reusables__filters-bar']/ul/li[3]/button")
-                companies_btn.click()
-                time.sleep(2)
-                logger.info("✅ Companies filter clicked successfully")
+                page.goto(f"{self.base_url}/login", wait_until='networkidle', timeout=30000)
             except Exception as e:
-                logger.warning(f"⚠️ Could not find Companies filter button: {e}")
-                # Thử các selector khác làm fallback
-                companies_selectors = [
-                    "//button[contains(text(), 'Companies')]",
-                    "//button[contains(@class, 'artdeco-pill') and contains(text(), 'Companies')]",
-                    "//button[contains(@class, 'search-reusables__filter-pill-button') and contains(text(), 'Companies')]"
+                # Nếu có lỗi navigation (có thể đang redirect), đợi một chút
+                logger.info("⏳ Đang chờ page load...")
+                page.wait_for_timeout(2000)
+        
+        # Chờ user đăng nhập và nhấn Enter
+        input("\n✅ Nhấn ENTER sau khi đã đăng nhập thành công...\n")
+        
+        # Đợi một chút để đảm bảo page đã load xong
+        page.wait_for_timeout(2000)
+        
+        # Kiểm tra xem đã đăng nhập chưa bằng cách check URL và elements
+        current_url = page.url
+        logger.info(f"📍 Current URL: {current_url}")
+        
+        # Check xem có đăng nhập thành công không
+        # LinkedIn sẽ redirect về /feed/ hoặc homepage sau khi đăng nhập
+        is_logged_in_by_url = (
+            '/feed' in current_url or 
+            '/in/' in current_url or
+            (self.base_url in current_url and '/login' not in current_url and current_url != f"{self.base_url}/")
+        )
+        
+        # Kiểm tra thêm bằng cách tìm elements chỉ xuất hiện khi đã đăng nhập
+        is_logged_in_by_elements = False
+        try:
+            # Tìm search box (chỉ có khi đã đăng nhập)
+            search_box = page.locator("input[placeholder='Search']")
+            if search_box.is_visible(timeout=3000):
+                is_logged_in_by_elements = True
+                logger.info("✅ Tìm thấy search box - đã đăng nhập")
+        except:
+            pass
+        
+        is_logged_in = is_logged_in_by_url or is_logged_in_by_elements
+        
+        # Nếu vẫn ở trang login, có thể user chưa đăng nhập xong
+        if '/login' in current_url and not is_logged_in:
+            logger.warning("⚠️ Có vẻ bạn vẫn ở trang login.")
+            logger.info("💡 Hãy đảm bảo bạn đã đăng nhập thành công trong browser.")
+            logger.info("❓ Bạn có muốn thử lại? (y/n)")
+            retry = input().strip().lower()
+            if retry == 'y':
+                # Không navigate lại, chỉ đợi user nhấn Enter
+                return self.wait_for_manual_login(page, first_time=False)
+            return False
+        
+        logger.info("✅ Đã đăng nhập thành công!")
+        return True
+    
+    def test_session_incognito(self, headless: bool = False) -> bool:
+        """
+        Test session bằng cách mở tab ẩn danh (incognito) - KHÔNG dùng browser cache/cookies
+        Chỉ dùng cookies từ session file đã lưu
+        Nếu session hoạt động, sẽ tự động đăng nhập
+        """
+        logger.info("🧪 Testing session với incognito mode (tab ẩn danh)...")
+        logger.info("💡 Browser sẽ mở để bạn có thể xem - KHÔNG dùng cache/cookies của browser")
+        
+        # Temporarily set headless để user có thể xem
+        original_headless = self.headless
+        self.headless = headless
+        
+        with sync_playwright() as playwright:
+            # Tạo browser MỚI - không load session vào context chính
+            browser = playwright.chromium.launch(
+                headless=self.headless,
+                args=[
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-blink-features=AutomationControlled',
                 ]
+            )
+            
+            # Load session từ file
+            storage_state = self._load_context_storage()
+            if not storage_state:
+                logger.error("❌ Không tìm thấy session file. Cần đăng nhập trước!")
+                self.headless = original_headless
+                return False
+            
+            logger.info("📁 Đã load cookies từ session file")
+            logger.info(f"🍪 Số lượng cookies: {len(storage_state.get('cookies', []))}")
+            
+            # Tạo INCOGNITO context - KHÔNG dùng browser cache/localStorage
+            # Chỉ dùng cookies từ session file
+            incognito_context = browser.new_context(
+                viewport={'width': 1920, 'height': 1080},
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                locale='en-US',
+                timezone_id='Europe/Berlin',
+                # KHÔNG load storage_state ở đây - chỉ add cookies thủ công
+                ignore_https_errors=False,
+            )
+            
+            # Thêm stealth script
+            incognito_context.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """)
+            
+            # Load CHỈ cookies từ session file (không dùng localStorage/cache)
+            cookies = storage_state.get('cookies', [])
+            if cookies:
+                # Set cookies vào incognito context
+                incognito_context.add_cookies(cookies)
+                logger.info(f"✅ Đã thêm {len(cookies)} cookies vào incognito context")
+            
+            page = incognito_context.new_page()
+            
+            try:
+                logger.info("🔍 Đang truy cập LinkedIn (incognito mode)...")
+                logger.info("⏳ Vui lòng quan sát browser - nếu thấy đã đăng nhập thì session hoạt động!")
                 
-                companies_btn = None
-                for selector in companies_selectors:
-                    try:
-                        companies_btn = driver.find_element(By.XPATH, selector)
-                        if companies_btn.is_displayed():
-                            companies_btn.click()
-                            time.sleep(2)
-                            logger.info(f"✅ Found Companies button with fallback selector: {selector}")
-                            break
-                    except:
-                        continue
+                # Dùng domcontentloaded thay vì networkidle để tránh timeout
+                page.goto(self.base_url, wait_until='domcontentloaded', timeout=60000)
+                page.wait_for_timeout(3000)  # Đợi thêm một chút để LinkedIn redirect nếu cần
                 
-                if not companies_btn:
-                    logger.warning("⚠️ Could not find any Companies filter button")
-            
-            # Tiếp tục với việc tìm công ty đầu tiên
-            
-            # Bước 4: Click vào công ty đầu tiên nếu tên khớp
-            logger.info("🏢 Looking for company with matching name...")
-            
-            # Tìm tất cả các link công ty
-            company_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/company/']")
-            
-            if company_links:
-                # Kiểm tra tên công ty trong link đầu tiên
-                first_company_link = company_links[0]
-                company_text = first_company_link.text.strip()
-                logger.info(f"📋 Found company: {company_text}")
+                current_url = page.url
+                logger.info(f"📍 Current URL: {current_url}")
                 
-                # Kiểm tra xem tên có khớp với công ty đang tìm không
-                if company_name.lower() in company_text.lower() or company_text.lower() in company_name.lower():
-                    logger.info(f"✅ Company name matches! Clicking on: {company_text}")
-                    first_company_link.click()
-                    time.sleep(3)
+                # Kiểm tra xem có đăng nhập thành công không
+                is_logged_in = False
+                
+                # Check URL
+                if '/login' not in current_url:
+                    is_logged_in = True
+                
+                # Check thêm bằng cách tìm search box
+                try:
+                    search_box = page.locator("input[placeholder='Search']")
+                    if search_box.is_visible(timeout=3000):
+                        is_logged_in = True
+                        logger.info("✅ Tìm thấy search box - đã đăng nhập!")
+                except:
+                    pass
+                
+                if is_logged_in:
+                    logger.info("=" * 60)
+                    logger.info("✅ SUCCESS! Session hoạt động trong incognito mode!")
+                    logger.info("✅ Điều này chứng tỏ cookies từ session file hoạt động")
+                    logger.info("✅ KHÔNG dùng cache/cookies từ browser")
+                    logger.info("=" * 60)
+                    logger.info("💡 Browser sẽ mở thêm 5 giây để bạn xác nhận...")
+                    page.wait_for_timeout(5000)
+                    return True
                 else:
-                    logger.warning(f"⚠️ Company name doesn't match. Expected: {company_name}, Found: {company_text}")
-                    # Vẫn click vào công ty đầu tiên
-                    first_company_link.click()
-                    time.sleep(3)
-            else:
-                logger.error("❌ No company links found")
-                return data
-            time.sleep(5)
+                    logger.warning("=" * 60)
+                    logger.warning("❌ Session không hoạt động - vẫn ở trang login")
+                    logger.warning("⚠️ Có thể cookies đã hết hạn hoặc không hợp lệ")
+                    logger.warning("=" * 60)
+                    logger.info("💡 Browser sẽ mở thêm 3 giây để bạn xác nhận...")
+                    page.wait_for_timeout(3000)
+                    return False
+                    
+            except Exception as e:
+                logger.error(f"❌ Lỗi khi test session: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                return False
+            finally:
+                browser.close()
+                self.headless = original_headless
+    
+    def setup_login_session(self, headless: bool = False) -> bool:
+        """
+        Setup login session: mở browser không headless để user đăng nhập
+        Sau đó lưu session/cookies để dùng lại
+        """
+        logger.info("🔧 Setting up LinkedIn login session...")
+        
+        # Temporarily set headless to False để user có thể đăng nhập
+        original_headless = self.headless
+        self.headless = headless
+        
+        should_test = False
+        
+        with sync_playwright() as playwright:
+            browser, context = self._setup_browser_context(playwright, load_session=False)
+            page = context.new_page()
             
-            # Bước 5: Xử lý popup nếu có (đã được xử lý bởi _dismiss_all_modals)
-            self._dismiss_all_modals(driver)
+            try:
+                # Chờ user đăng nhập
+                if self.wait_for_manual_login(page):
+                    # Lưu session sau khi đăng nhập
+                    if self._save_context_storage(context):
+                        logger.info("✅ Đã lưu session thành công!")
+                        
+                        # Hỏi user có muốn test không (trước khi đóng context)
+                        logger.info("\n🧪 Bạn có muốn test session với incognito mode không? (y/n)")
+                        test_choice = input().strip().lower()
+                        should_test = (test_choice == 'y')
+                        
+                        # Đóng browser trước khi ra khỏi context
+                        browser.close()
+                        # Context sẽ được đóng khi ra khỏi 'with' block
+                    else:
+                        logger.error("❌ Không thể lưu session")
+                        self.headless = original_headless
+                        return False
+                else:
+                    logger.error("❌ Đăng nhập không thành công")
+                    self.headless = original_headless
+                    return False
+                    
+            except KeyboardInterrupt:
+                logger.info("⚠️ Đã hủy bởi user")
+                self.headless = original_headless
+                return False
+            finally:
+                # Đảm bảo browser được đóng
+                try:
+                    browser.close()
+                except:
+                    pass
+        
+        # Sau khi đã ra khỏi playwright context hoàn toàn, mới test
+        if should_test:
+            self.test_session_incognito(headless=headless)  # Dùng cùng headless mode
+        
+        self.headless = original_headless
+        return True
+    
+    def scrape_with_playwright(self, company_name: str, registernummer: str) -> Dict:
+        """
+        Scrape company data using Playwright với session đã lưu
+        
+        Args:
+            company_name: Company name
+            registernummer: HRB number
             
-            # Bước 6: Click "About" tab
-            logger.info("📄 Clicking 'About' tab...")
-            about_link = driver.find_element(By.XPATH, "//a[contains(@href, '/about/')]")
-            about_link.click()
-            time.sleep(3)
+        Returns:
+            Dict with scraped data
+        """
+        try:
+            logger.info(f"🔍 Scraping LinkedIn with Playwright for {company_name}")
             
-            # Xử lý modal sau khi click About
-            self._dismiss_all_modals(driver)
+            data = {
+                'registernummer': registernummer,
+                'mitarbeiter': None,
+                'website': None,
+                'email': None,
+                'telefonnummer': None,
+                'about_html': None
+            }
             
-            # Bước 7: Lấy HTML của toàn bộ phần About
-            logger.info("📄 Extracting full About section HTML...")
-            
-            # Lấy toàn bộ section About (bao gồm Overview, Website, Phone, Industry, Company size, Founded)
-            about_section = driver.find_element(By.CSS_SELECTOR, "section.artdeco-card.org-page-details-module__card-spacing")
-            about_html = about_section.get_attribute('outerHTML')
-            
-            logger.info(f"📄 Retrieved full About section HTML ({len(about_html)} characters)")
-            
-            # Extract thông tin cụ thể từ About section
-            about_data = self._extract_about_data(about_section)
-            
-            # Extract data
-            data = self._parse_selenium_data(driver, company_name, registernummer)
-            data['about_html'] = about_html
-            
-            # Merge thông tin từ About section
-            data.update(about_data)
-            
-            logger.info("⏳ Keeping browser open for 10 seconds to inspect...")
-            time.sleep(10)  # Giữ browser mở để bạn xem
-            
-            driver.quit()
-            
-            logger.info(f"✅ Successfully scraped {company_name} with Selenium")
-            return data
-            
+            with sync_playwright() as playwright:
+                browser, context = self._setup_browser_context(playwright, load_session=True)
+                page = context.new_page()
+                
+                try:
+                    # Kiểm tra xem có session không, nếu không cần đăng nhập
+                    logger.info("🔍 Đang kiểm tra session...")
+                    page.goto(self.base_url, wait_until='domcontentloaded', timeout=60000)
+                    page.wait_for_timeout(2000)  # Đợi redirect nếu có
+                    current_url = page.url
+                    logger.info(f"📍 Current URL: {current_url}")
+                    
+                    # Kiểm tra đăng nhập bằng URL và search box
+                    is_logged_in = '/login' not in current_url
+                    if not is_logged_in:
+                        # Check thêm bằng search box
+                        try:
+                            search_box = page.locator("input[placeholder='Search']")
+                            if search_box.is_visible(timeout=3000):
+                                is_logged_in = True
+                                logger.info("✅ Tìm thấy search box - đã đăng nhập")
+                        except:
+                            pass
+                    
+                    if not is_logged_in:
+                        logger.warning("⚠️ Chưa có session hoặc session đã hết hạn. Cần đăng nhập.")
+                        logger.info("💡 Chạy: python scrapers/linkedin_scraper.py -> chọn option 1 để đăng nhập")
+                        logger.info("💡 Hoặc chạy: scraper.setup_login_session(headless=False)")
+                        return data
+                    
+                    logger.info("✅ Session hoạt động, bắt đầu scrape...")
+                    
+                    # Bước 1: Tìm kiếm công ty
+                    logger.info(f"🔍 Searching for company: {company_name}")
+                    try:
+                        search_input = page.locator("input[placeholder='Search']")
+                        if not search_input.is_visible(timeout=5000):
+                            logger.warning("⚠️ Không tìm thấy search box, có thể cần đợi thêm...")
+                            page.wait_for_timeout(2000)
+                            search_input = page.locator("input[placeholder='Search']")
+                        
+                        search_input.fill(company_name)
+                        search_input.press('Enter')
+                        logger.info("✅ Đã gửi search query")
+                        page.wait_for_timeout(3000)
+                    except Exception as e:
+                        logger.error(f"❌ Lỗi khi search: {e}")
+                        return data
+                    
+                    # Xử lý modal
+                    self._dismiss_all_modals(page)
+                    
+                    # Bước 2: Click "Companies" filter
+                    logger.info("🏢 Clicking 'Companies' filter...")
+                    try:
+                        companies_btn = page.locator("//*[@id='search-reusables__filters-bar']/ul/li[3]/button")
+                        if companies_btn.is_visible(timeout=5000):
+                            companies_btn.click()
+                            page.wait_for_timeout(2000)
+                            logger.info("✅ Companies filter clicked")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not find Companies filter: {e}")
+                        # Fallback selectors
+                        fallback_selectors = [
+                            "button:has-text('Companies')",
+                            "button.artdeco-pill:has-text('Companies')",
+                        ]
+                        for selector in fallback_selectors:
+                            try:
+                                btn = page.locator(selector).first
+                                if btn.is_visible(timeout=2000):
+                                    btn.click()
+                                    page.wait_for_timeout(2000)
+                                    logger.info(f"✅ Found Companies button with fallback: {selector}")
+                                    break
+                            except:
+                                continue
+                    
+                    # Bước 3: Click vào công ty đầu tiên
+                    logger.info("🏢 Looking for company with matching name...")
+                    company_links = page.locator("a[href*='/company/']")
+                    
+                    if company_links.count() > 0:
+                        first_link = company_links.first
+                        company_text = first_link.inner_text().strip()
+                        logger.info(f"📋 Found company: {company_text}")
+                        
+                        # Kiểm tra tên có khớp không
+                        if company_name.lower() in company_text.lower() or company_text.lower() in company_name.lower():
+                            logger.info(f"✅ Company name matches! Clicking on: {company_text}")
+                        else:
+                            logger.warning(f"⚠️ Company name doesn't match. Expected: {company_name}, Found: {company_text}")
+                        
+                        first_link.click()
+                        page.wait_for_timeout(3000)
+                        self._dismiss_all_modals(page)
+                    else:
+                        logger.error("❌ No company links found")
+                        return data
+                    
+                    # Bước 4: Click "About" tab
+                    logger.info("📄 Clicking 'About' tab...")
+                    # Có 2 About links, dùng selector cụ thể hơn hoặc .first
+                    try:
+                        # Thử tìm link trong navigation menu trước (tab chính)
+                        about_link = page.locator("a[href*='/about/'][class*='org-page-navigation']").first
+                        if about_link.is_visible(timeout=5000):
+                            about_link.click()
+                            logger.info("✅ Clicked About tab (navigation)")
+                            page.wait_for_timeout(3000)
+                            self._dismiss_all_modals(page)
+                        else:
+                            # Fallback: dùng link đầu tiên
+                            about_link = page.locator("a[href*='/about/']").first
+                            if about_link.is_visible(timeout=3000):
+                                about_link.click()
+                                logger.info("✅ Clicked About tab (fallback)")
+                                page.wait_for_timeout(3000)
+                                self._dismiss_all_modals(page)
+                            else:
+                                logger.warning("⚠️ Could not find About tab")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Error clicking About tab: {e}")
+                        # Fallback: thử dùng .first
+                        try:
+                            about_link = page.locator("a[href*='/about/']").first
+                            about_link.click()
+                            logger.info("✅ Clicked About tab (fallback 2)")
+                            page.wait_for_timeout(3000)
+                            self._dismiss_all_modals(page)
+                        except Exception as e2:
+                            logger.error(f"❌ Could not click About tab: {e2}")
+                    
+                    # Bước 5: Extract About section HTML
+                    logger.info("📄 Extracting full About section HTML...")
+                    about_section = page.locator("section.artdeco-card.org-page-details-module__card-spacing")
+                    
+                    if about_section.is_visible(timeout=5000):
+                        about_html = about_section.inner_html()
+                        data['about_html'] = about_html
+                        logger.info(f"📄 Retrieved About section HTML ({len(about_html)} characters)")
+                        
+                        # Extract specific data từ About section
+                        about_data = self._extract_about_data_playwright(about_section)
+                        data.update(about_data)
+                    else:
+                        logger.warning("⚠️ Could not find About section")
+                    
+                    logger.info(f"✅ Successfully scraped {company_name}")
+                    return data
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error during scraping: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+                    return data
+                finally:
+                    browser.close()
+                    
         except Exception as e:
-            logger.error(f"❌ Error scraping {company_name} with Selenium: {str(e)}")
+            logger.error(f"❌ Error scraping {company_name} with Playwright: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {}
     
-    def _parse_company_data(self, soup: BeautifulSoup, company_name: str, registernummer: str) -> Dict:
-        """Parse company data from HTML"""
-        
-        data = {
-            'registernummer': registernummer,
-            'mitarbeiter': self._extract_mitarbeiter(soup),
-            'website': self._extract_website(soup),
-            'email': self._extract_email(soup),
-            'geschaeftsadresse': self._extract_geschaeftsadresse(soup)
-        }
-        
-        return data
-    
-    def _parse_selenium_data(self, driver, company_name: str, registernummer: str) -> Dict:
-        """Parse company data using Selenium"""
-        
-        data = {
-            'registernummer': registernummer,
-            'mitarbeiter': self._extract_mitarbeiter_selenium(driver),
-            'website': self._extract_website_selenium(driver),
-            'email': self._extract_email_selenium(driver),
-            'geschaeftsadresse': self._extract_geschaeftsadresse_selenium(driver)
-        }
-        
-        return data
-    
-    def _extract_mitarbeiter(self, soup: BeautifulSoup) -> int:
-        """Extract number of employees from HTML"""
-        # Implementation needed based on actual HTML structure
-        return 14  # Placeholder for MAGNA
-    
-    def _extract_website(self, soup: BeautifulSoup) -> str:
-        """Extract company website from HTML"""
-        # Implementation needed based on actual HTML structure
-        return "https://www.magna-real-estate.com"  # Placeholder
-    
-    def _extract_email(self, soup: BeautifulSoup) -> str:
-        """Extract company email from HTML"""
-        # Implementation needed based on actual HTML structure
-        return "info@magna-real-estate.com"  # Placeholder
-    
-    def _extract_geschaeftsadresse(self, soup: BeautifulSoup) -> str:
-        """Extract business address from HTML"""
-        # Implementation needed based on actual HTML structure
-        return "Hamburg, Deutschland"  # Placeholder
-    
-    def _extract_mitarbeiter_selenium(self, driver) -> int:
-        """Extract number of employees using Selenium"""
-        try:
-            # Look for employee count element
-            employee_element = driver.find_element(By.CSS_SELECTOR, "[data-test-id='employee-count']")
-            employee_text = employee_element.text
-            # Extract number from text like "14 employees"
-            import re
-            numbers = re.findall(r'\d+', employee_text)
-            return int(numbers[0]) if numbers else 0
-        except:
-            return 0
-    
-    def _extract_website_selenium(self, driver) -> str:
-        """Extract company website using Selenium"""
-        try:
-            website_element = driver.find_element(By.CSS_SELECTOR, "[data-test-id='company-website']")
-            return website_element.get_attribute('href')
-        except:
-            return ""
-    
-    def _extract_email_selenium(self, driver) -> str:
-        """Extract company email using Selenium"""
-        try:
-            email_element = driver.find_element(By.CSS_SELECTOR, "[data-test-id='company-email']")
-            return email_element.text
-        except:
-            return ""
-    
-    def _extract_geschaeftsadresse_selenium(self, driver) -> str:
-        """Extract business address using Selenium"""
-        try:
-            address_element = driver.find_element(By.CSS_SELECTOR, "[data-test-id='company-address']")
-            return address_element.text
-        except:
-            return ""
-    
-    def _extract_about_data(self, about_section) -> Dict:
-        """Extract specific data from About section"""
+    def _extract_about_data_playwright(self, about_section) -> Dict:
+        """Extract specific data from About section using Playwright"""
         data = {
             'website': None,
             'telefonnummer': None,
@@ -354,47 +538,52 @@ class LinkedInScraper:
         try:
             # Extract Website
             try:
-                website_element = about_section.find_element(By.XPATH, "//dt[contains(., 'Website')]/following-sibling::dd//a")
-                data['website'] = website_element.get_attribute('href')
-                logger.info(f"✅ Found website: {data['website']}")
+                website_locator = about_section.locator("//dt[contains(., 'Website')]/following-sibling::dd//a")
+                if website_locator.is_visible(timeout=2000):
+                    data['website'] = website_locator.get_attribute('href')
+                    logger.info(f"✅ Found website: {data['website']}")
             except:
                 logger.info("ℹ️ No website found")
             
             # Extract Phone
             try:
-                phone_element = about_section.find_element(By.XPATH, "//dt[contains(., 'Phone')]/following-sibling::dd//a")
-                data['telefonnummer'] = phone_element.get_attribute('href').replace('tel:', '')
-                logger.info(f"✅ Found phone: {data['telefonnummer']}")
+                phone_locator = about_section.locator("//dt[contains(., 'Phone')]/following-sibling::dd//a")
+                if phone_locator.is_visible(timeout=2000):
+                    phone_href = phone_locator.get_attribute('href')
+                    if phone_href:
+                        data['telefonnummer'] = phone_href.replace('tel:', '')
+                        logger.info(f"✅ Found phone: {data['telefonnummer']}")
             except:
                 logger.info("ℹ️ No phone found")
             
             # Extract Company size (số nhân viên)
             try:
-                size_element = about_section.find_element(By.XPATH, "//dt[contains(., 'Company size')]/following-sibling::dd")
-                size_text = size_element.text
-                # Extract số từ text như "51-200 employees"
-                import re
-                numbers = re.findall(r'\d+', size_text)
-                if numbers:
-                    # Lấy số lớn nhất (200 trong "51-200")
-                    data['mitarbeiter'] = int(max(numbers))
-                    logger.info(f"✅ Found company size: {data['mitarbeiter']} employees")
+                size_locator = about_section.locator("//dt[contains(., 'Company size')]/following-sibling::dd")
+                if size_locator.is_visible(timeout=2000):
+                    size_text = size_locator.inner_text()
+                    import re
+                    numbers = re.findall(r'\d+', size_text)
+                    if numbers:
+                        data['mitarbeiter'] = int(max(numbers))
+                        logger.info(f"✅ Found company size: {data['mitarbeiter']} employees")
             except:
                 logger.info("ℹ️ No company size found")
             
             # Extract Industry
             try:
-                industry_element = about_section.find_element(By.XPATH, "//dt[contains(., 'Industry')]/following-sibling::dd")
-                data['industry'] = industry_element.text.strip()
-                logger.info(f"✅ Found industry: {data['industry']}")
+                industry_locator = about_section.locator("//dt[contains(., 'Industry')]/following-sibling::dd")
+                if industry_locator.is_visible(timeout=2000):
+                    data['industry'] = industry_locator.inner_text().strip()
+                    logger.info(f"✅ Found industry: {data['industry']}")
             except:
                 logger.info("ℹ️ No industry found")
             
             # Extract Founded year
             try:
-                founded_element = about_section.find_element(By.XPATH, "//dt[contains(., 'Founded')]/following-sibling::dd")
-                data['founded'] = founded_element.text.strip()
-                logger.info(f"✅ Found founded: {data['founded']}")
+                founded_locator = about_section.locator("//dt[contains(., 'Founded')]/following-sibling::dd")
+                if founded_locator.is_visible(timeout=2000):
+                    data['founded'] = founded_locator.inner_text().strip()
+                    logger.info(f"✅ Found founded: {data['founded']}")
             except:
                 logger.info("ℹ️ No founded year found")
                 
@@ -403,104 +592,62 @@ class LinkedInScraper:
         
         return data
     
-    def _dismiss_all_modals(self, driver):
-        """
-        Dismiss all possible modals, overlays, and popups on LinkedIn
-        """
+    def _dismiss_all_modals(self, page: Page):
+        """Dismiss all possible modals, overlays, and popups on LinkedIn"""
         logger.info("🚫 Dismissing all modals and overlays...")
         
-        # Danh sách các selector để tìm và đóng modal/popup
         modal_selectors = [
-            # Premium modal
             "button[aria-label='Dismiss']",
             "button[data-test-modal-close-btn]",
             ".artdeco-modal__dismiss",
-            ".modal-dismiss",
-            
-            # X button variants
             "button[aria-label='Close']",
             "button[data-control-name='modal.dismiss']",
-            
-            # Premium upgrade modal
             ".premium-upsell-modal button[aria-label='Dismiss']",
-            ".premium-upsell-modal .artdeco-modal__dismiss",
-            
-            # Network growth modal
             ".network-growth-modal button[aria-label='Dismiss']",
-            ".network-growth-modal .artdeco-modal__dismiss",
-            
-            # Generic modal close buttons
-            ".modal-close",
-            ".close-button",
-            ".dismiss-button",
-            
-            # LinkedIn specific
             "button[data-test-id='modal-close']",
-            ".messaging-modal__dismiss",
             ".artdeco-toast-item__dismiss",
-            
-            # ESC key alternative - click outside modal
-            ".artdeco-modal__overlay",
-            ".modal-overlay"
         ]
         
         dismissed_count = 0
         
-        # Thử tất cả các selector
         for selector in modal_selectors:
             try:
-                elements = driver.find_elements(By.CSS_SELECTOR, selector)
-                for element in elements:
-                    if element.is_displayed() and element.is_enabled():
+                elements = page.locator(selector)
+                count = elements.count()
+                for i in range(count):
+                    element = elements.nth(i)
+                    if element.is_visible(timeout=500):
                         try:
                             element.click()
                             dismissed_count += 1
-                            logger.info(f"✅ Dismissed modal with selector: {selector}")
-                            time.sleep(0.5)  # Ngắn delay giữa các click
+                            logger.info(f"✅ Dismissed modal: {selector}")
+                            page.wait_for_timeout(500)
                         except:
-                            # Nếu click không được, thử JavaScript click
-                            try:
-                                driver.execute_script("arguments[0].click();", element)
-                                dismissed_count += 1
-                                logger.info(f"✅ Dismissed modal with JS click: {selector}")
-                                time.sleep(0.5)
-                            except:
-                                continue
+                            continue
             except:
                 continue
         
-        # Thử nhấn ESC key để đóng modal
+        # JavaScript để đóng modal
         try:
-            from selenium.webdriver.common.keys import Keys
-            driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.ESCAPE)
-            time.sleep(0.5)
-        except:
-            pass
-        
-        # Thử click vào background để đóng modal
-        try:
-            driver.execute_script("""
-                // Click on any modal overlay to close it
-                const overlays = document.querySelectorAll('.artdeco-modal__overlay, .modal-overlay, .overlay');
-                overlays.forEach(overlay => {
-                    if (overlay.style.display !== 'none') {
-                        overlay.click();
-                    }
-                });
-                
-                // Hide any visible modals
-                const modals = document.querySelectorAll('.artdeco-modal, .modal, [role="dialog"]');
-                modals.forEach(modal => {
-                    if (modal.style.display !== 'none') {
-                        modal.style.display = 'none';
-                    }
-                });
-                
-                // Remove any toast notifications
-                const toasts = document.querySelectorAll('.artdeco-toast-item, .toast');
-                toasts.forEach(toast => {
-                    toast.remove();
-                });
+            page.evaluate("""
+                () => {
+                    const overlays = document.querySelectorAll('.artdeco-modal__overlay, .modal-overlay');
+                    overlays.forEach(overlay => {
+                        if (overlay.style.display !== 'none') {
+                            overlay.click();
+                        }
+                    });
+                    
+                    const modals = document.querySelectorAll('.artdeco-modal, .modal, [role="dialog"]');
+                    modals.forEach(modal => {
+                        if (modal.style.display !== 'none') {
+                            modal.style.display = 'none';
+                        }
+                    });
+                    
+                    const toasts = document.querySelectorAll('.artdeco-toast-item, .toast');
+                    toasts.forEach(toast => toast.remove());
+                }
             """)
             logger.info("✅ Executed JavaScript to dismiss modals")
         except Exception as e:
@@ -511,23 +658,96 @@ class LinkedInScraper:
         else:
             logger.info("ℹ️ No modals found to dismiss")
         
-        # Đợi một chút để đảm bảo modal đã đóng hoàn toàn
-        time.sleep(1)
+        page.wait_for_timeout(1000)
+    
+    # Compatibility method - giữ lại tên cũ để server.py không bị lỗi
+    def scrape_with_selenium(self, company_name: str, registernummer: str) -> Dict:
+        """Alias for scrape_with_playwright - để tương thích với code cũ"""
+        return self.scrape_with_playwright(company_name, registernummer)
+    
+    def scrape_company(self, company_name: str, registernummer: str) -> Dict:
+        """Placeholder method"""
+        return self.scrape_with_playwright(company_name, registernummer)
 
 
 if __name__ == "__main__":
-    scraper = LinkedInScraper()
+    import sys
     
-    print("\n" + "="*80)
-    print("TESTING LINKEDIN SCRAPER")
-    print("="*80 + "\n")
-    
-    # Test with MAGNA Real Estate using Selenium
-    result = scraper.scrape_with_selenium("MAGNA Real Estate GmbH", "HRB182742")
-    
-    print("\n" + "="*80)
-    print("SCRAPED DATA:")
-    print("="*80)
-    for key, value in result.items():
-        print(f"  {key}: {value}")
-    print("="*80 + "\n")
+    # Nếu có arguments từ command line, dùng để scrape
+    if len(sys.argv) > 1:
+        # Mode: scrape với arguments
+        # Usage: python scrapers/linkedin_scraper.py "Company Name" "HRB123456"
+        company_name = sys.argv[1] if len(sys.argv) > 1 else "MAGNA Real Estate GmbH"
+        registernummer = sys.argv[2] if len(sys.argv) > 2 else "HRB182742"
+        # Mặc định headless=False để user có thể xem browser
+        headless = sys.argv[3].lower() == 'true' if len(sys.argv) > 3 else False
+        
+        scraper = LinkedInScraper(headless=headless)
+        
+        print("\n" + "="*80)
+        print(f"LINKEDIN SCRAPER - SCRAPING: {company_name}")
+        print("="*80 + "\n")
+        
+        result = scraper.scrape_with_playwright(company_name, registernummer)
+        
+        print("\n" + "="*80)
+        print("SCRAPED DATA:")
+        print("="*80)
+        for key, value in result.items():
+            if key == 'about_html':
+                if value:
+                    print(f"\n{key}:")
+                    print(f"  Length: {len(str(value))} characters")
+                    print(f"  Preview: {str(value)[:200]}...")
+                else:
+                    print(f"{key}: None")
+            else:
+                print(f"{key}: {value}")
+        print("="*80 + "\n")
+    else:
+        # Mode: Interactive menu (cho setup/test)
+        scraper = LinkedInScraper(headless=False)  # Non-headless để test
+        
+        print("\n" + "="*80)
+        print("LINKEDIN SCRAPER - SETUP & TEST")
+        print("="*80 + "\n")
+        
+        print("Chọn chức năng:")
+        print("1. Setup login session (đăng nhập và lưu session)")
+        print("2. Test session với incognito mode")
+        print("3. Scrape company (MAGNA Real Estate)")
+        print("4. Tất cả (setup -> test -> scrape)")
+        
+        choice = input("\nNhập lựa chọn (1/2/3/4): ").strip()
+        
+        if choice == "1":
+            scraper.setup_login_session(headless=False)
+        elif choice == "2":
+            scraper.test_session_incognito(headless=False)  # Non-headless để user xem
+        elif choice == "3":
+            result = scraper.scrape_with_playwright("MAGNA Real Estate GmbH", "HRB182742")
+            print("\n" + "="*80)
+            print("SCRAPED DATA:")
+            print("="*80)
+            for key, value in result.items():
+                if key == 'about_html':
+                    print(f"  {key}: {len(str(value))} characters")
+                else:
+                    print(f"  {key}: {value}")
+            print("="*80 + "\n")
+        elif choice == "4":
+            # Setup
+            if scraper.setup_login_session(headless=False):
+                # Test
+                scraper.test_session_incognito(headless=False)
+                # Scrape
+                result = scraper.scrape_with_playwright("MAGNA Real Estate GmbH", "HRB182742")
+                print("\n" + "="*80)
+                print("SCRAPED DATA:")
+                print("="*80)
+                for key, value in result.items():
+                    if key == 'about_html':
+                        print(f"  {key}: {len(str(value))} characters")
+                    else:
+                        print(f"  {key}: {value}")
+                print("="*80 + "\n")

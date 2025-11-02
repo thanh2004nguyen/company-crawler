@@ -55,7 +55,7 @@ is_production = True  # Always headless on cloud
 
 handelsregister_scraper = HandelsregisterScraper(headless=is_production, language='FR')
 northdata_scraper = NorthdataScraper(headless=is_production)
-linkedin_scraper = LinkedInScraper()
+linkedin_scraper = LinkedInScraper(headless=is_production)  # Headless trong production
 unternehmensregister_scraper = UnternehmensregisterScraper()
 
 def load_companies_data():
