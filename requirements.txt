@@ -17,9 +17,6 @@ pdfplumber==0.10.3
 # XML Processing
 xmltodict==0.13.0
 
-# Data Processing
-pandas==2.1.4
-
 # Utilities
 python-dotenv==1.0.0
 loguru==0.7.2
