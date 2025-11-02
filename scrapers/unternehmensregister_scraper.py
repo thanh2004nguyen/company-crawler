@@ -30,8 +30,9 @@ logger = logging.getLogger(__name__)
 class UnternehmensregisterScraper:
     """Scraper for unternehmensregister.de"""
     
-    def __init__(self):
+    def __init__(self, headless: bool = True):
         self.base_url = "https://unternehmensregister.de/de"
+        self.headless = headless
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -64,7 +65,7 @@ class UnternehmensregisterScraper:
             with sync_playwright() as p:
                 # Launch browser với stealth mode để tránh detection
                 browser = p.chromium.launch(
-                    headless=False,
+                    headless=self.headless,
                     args=[
                         '--no-sandbox',
                         '--disable-dev-shm-usage',
